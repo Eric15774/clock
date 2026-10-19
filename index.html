@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classroom Clock</title>
+<style>
+  /* ===== EASY SETTINGS ARE IN THE SCRIPT BELOW (CONFIG) ===== */
+  :root {
+    --bg: #0f1724;
+    --panel: #18233a;
+    --text: #f4f6fb;
+    --muted: #9fb0cc;
+    --accent: #ffc94a;
+    --line: #2a3a5a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    padding: 3vh 4vw;
+    gap: 3vh;
+    overflow: hidden;
+    cursor: none;
+  }
+  .top {
+    flex: 1.2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .time {
+    font-size: min(22vw, 32vh);
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .time .ampm {
+    font-size: 0.28em;
+    font-weight: 600;
+    color: var(--accent);
+    margin-left: 0.15em;
+    vertical-align: 0.25em;
+  }
+  .time .sec {
+    font-size: 0.28em;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .date {
+    font-size: min(5vw, 7vh);
+    color: var(--muted);
+    margin-top: 1.5vh;
+  }
+  .weather {
+    flex: 1;
+    display: flex;
+    gap: 2vw;
+    min-height: 0;
+  }
+  .now {
+    flex: 1.3;
+    background: var(--panel);
+    border-radius: 2vh;
+    padding: 2.5vh 2.5vw;
+    display: flex;
+    align-items: center;
+    gap: 2.5vw;
+  }
+  .now .icon { font-size: min(10vw, 16vh); line-height: 1; }
+  .now .temp {
+    font-size: min(9vw, 14vh);
+    font-weight: 700;
+    line-height: 1;
+  }
+  .now .cond { font-size: min(2.8vw, 4.2vh); margin-top: 0.8vh; }
+  .now .details {
+    font-size: min(1.9vw, 3vh);
+    color: var(--muted);
+    margin-top: 1vh;
+    line-height: 1.5;
+  }
+  .forecast {
+    flex: 2;
+    display: flex;
+    gap: 1.5vw;
+  }
+  .day {
+    flex: 1;
+    background: var(--panel);
+    border-radius: 2vh;
+    padding: 2vh 1vw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .day .name { font-size: min(2.4vw, 3.8vh); font-weight: 600; }
+  .day .icon { font-size: min(5.5vw, 9vh); margin: 1vh 0; line-height: 1; }
+  .day .hilo { font-size: min(2.4vw, 3.8vh); }
+  .day .hilo .lo { color: var(--muted); }
+  .day .rain { font-size: min(1.7vw, 2.7vh); color: #7cc4ff; margin-top: 0.6vh; }
+  .footer {
+    font-size: min(1.4vw, 2.2vh);
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+  .error { color: #ff8a8a; }
+</style>
+</head>
+<body>
+
+  <section class="top">
+    <div class="time" id="time">--:--</div>
+    <div class="date" id="date"></div>
+  </section>
+
+  <section class="weather">
+    <div class="now">
+      <div class="icon" id="nowIcon">⏳</div>
+      <div>
+        <div class="temp" id="nowTemp">--°</div>
+        <div class="cond" id="nowCond">Loading weather...</div>
+        <div class="details" id="nowDetails"></div>
+      </div>
+    </div>
+    <div class="forecast" id="forecast"></div>
+  </section>
+
+  <div class="footer">
+    <span id="place"></span>
+    <span id="updated"></span>
+  </div>
+
+<script>
+/* ===================== CONFIG =====================
+   Change these to move the weather location.
+   You can also override them in the web address, e.g.
+   index.html?lat=40.77&lon=-79.53&name=Ford%20City
+==================================================== */
+const CONFIG = {
+  latitude: 40.765,           // Lenape Tech, Ford City PA
+  longitude: -79.535,
+  placeName: "Ford City, PA",
+  timezone: "America/New_York",
+  showSeconds: true,
+  weatherRefreshMinutes: 10
+};
+
+// Allow URL overrides
+const params = new URLSearchParams(location.search);
+if (params.get("lat")) CONFIG.latitude = parseFloat(params.get("lat"));
+if (params.get("lon")) CONFIG.longitude = parseFloat(params.get("lon"));
+if (params.get("name")) CONFIG.placeName = params.get("name");
+
+/* ---------- Clock ---------- */
+const timeEl = document.getElementById("time");
+const dateEl = document.getElementById("date");
+
+function updateClock() {
+  const now = new Date();
+  let h = now.getHours();
+  const m = String(now.getMinutes()).padStart(2, "0");
+  const s = String(now.getSeconds()).padStart(2, "0");
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  timeEl.innerHTML = h + ":" + m +
+    (CONFIG.showSeconds ? '<span class="sec">:' + s + '</span>' : "") +
+    '<span class="ampm">' + ampm + "</span>";
+  dateEl.textContent = now.toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", year: "numeric"
+  });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+/* ---------- Weather (Open-Meteo, free, no API key) ---------- */
+const CODES = {
+  0: ["Clear", "☀️", "🌙"],
+  1: ["Mostly Clear", "🌤️", "🌙"],
+  2: ["Partly Cloudy", "⛅", "☁️"],
+  3: ["Cloudy", "☁️", "☁️"],
+  45: ["Fog", "🌫️", "🌫️"],
+  48: ["Freezing Fog", "🌫️", "🌫️"],
+  51: ["Light Drizzle", "🌦️", "🌧️"],
+  53: ["Drizzle", "🌦️", "🌧️"],
+  55: ["Heavy Drizzle", "🌧️", "🌧️"],
+  56: ["Freezing Drizzle", "🌧️", "🌧️"],
+  57: ["Freezing Drizzle", "🌧️", "🌧️"],
+  61: ["Light Rain", "🌦️", "🌧️"],
+  63: ["Rain", "🌧️", "🌧️"],
+  65: ["Heavy Rain", "🌧️", "🌧️"],
+  66: ["Freezing Rain", "🌧️", "🌧️"],
+  67: ["Freezing Rain", "🌧️", "🌧️"],
+  71: ["Light Snow", "🌨️", "🌨️"],
+  73: ["Snow", "🌨️", "🌨️"],
+  75: ["Heavy Snow", "❄️", "❄️"],
+  77: ["Snow Grains", "🌨️", "🌨️"],
+  80: ["Rain Showers", "🌦️", "🌧️"],
+  81: ["Rain Showers", "🌧️", "🌧️"],
+  82: ["Heavy Showers", "⛈️", "⛈️"],
+  85: ["Snow Showers", "🌨️", "🌨️"],
+  86: ["Snow Showers", "❄️", "❄️"],
+  95: ["Thunderstorm", "⛈️", "⛈️"],
+  96: ["Thunderstorm, Hail", "⛈️", "⛈️"],
+  99: ["Thunderstorm, Hail", "⛈️", "⛈️"]
+};
+function describe(code, isDay) {
+  const c = CODES[code] || ["--", "🌡️", "🌡️"];
+  return { text: c[0], icon: isDay === 0 ? c[2] : c[1] };
+}
+
+async function updateWeather() {
+  const url = "https://api.open-meteo.com/v1/forecast" +
+    "?latitude=" + CONFIG.latitude +
+    "&longitude=" + CONFIG.longitude +
+    "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+    "&temperature_unit=fahrenheit&wind_speed_unit=mph" +
+    "&timezone=" + encodeURIComponent(CONFIG.timezone) +
+    "&forecast_days=4";
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const cur = data.current;
+    const d = describe(cur.weather_code, cur.is_day);
+
+    document.getElementById("nowIcon").textContent = d.icon;
+    document.getElementById("nowTemp").textContent = Math.round(cur.temperature_2m) + "°F";
+    document.getElementById("nowCond").textContent = d.text;
+    document.getElementById("nowDetails").innerHTML =
+      "Feels like " + Math.round(cur.apparent_temperature) + "°<br>" +
+      "Wind " + Math.round(cur.wind_speed_10m) + " mph &nbsp;·&nbsp; " +
+      "Humidity " + cur.relative_humidity_2m + "%";
+
+    // Today + next 3 days
+    const fc = document.getElementById("forecast");
+    fc.innerHTML = "";
+    data.daily.time.forEach((day, i) => {
+      const dd = describe(data.daily.weather_code[i], 1);
+      const label = i === 0 ? "Today" :
+        new Date(day + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
+      const rain = data.daily.precipitation_probability_max[i];
+      fc.insertAdjacentHTML("beforeend",
+        '<div class="day">' +
+          '<div class="name">' + label + '</div>' +
+          '<div class="icon">' + dd.icon + '</div>' +
+          '<div class="hilo">' + Math.round(data.daily.temperature_2m_max[i]) + '° ' +
+            '<span class="lo">/ ' + Math.round(data.daily.temperature_2m_min[i]) + '°</span></div>' +
+          (rain != null ? '<div class="rain">💧 ' + rain + '%</div>' : "") +
+        '</div>');
+    });
+
+    document.getElementById("updated").textContent =
+      "Weather updated " + new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    document.getElementById("updated").classList.remove("error");
+  } catch (err) {
+    // Keep showing the last good data; just flag the problem
+    const u = document.getElementById("updated");
+    u.textContent = "Weather unavailable, retrying...";
+    u.classList.add("error");
+    setTimeout(updateWeather, 60 * 1000);
+  }
+}
+
+document.getElementById("place").textContent = CONFIG.placeName;
+updateWeather();
+setInterval(updateWeather, CONFIG.weatherRefreshMinutes * 60 * 1000);
+
+// Reload once a day (3 AM) so a screen left on for weeks stays fresh
+setInterval(() => {
+  const n = new Date();
+  if (n.getHours() === 3 && n.getMinutes() === 0) location.reload();
+}, 60 * 1000);
+</script>
+</body>
+</html>
